@@ -1,0 +1,277 @@
+diff --git a/libs/cua-driver/rust/crates/platform-windows/src/tools/impl_.rs b/libs/cua-driver/rust/crates/platform-windows/src/tools/impl_.rs
+index db3d61c..9a938f6 100644
+--- a/libs/cua-driver/rust/crates/platform-windows/src/tools/impl_.rs
++++ b/libs/cua-driver/rust/crates/platform-windows/src/tools/impl_.rs
+@@ -1281,7 +1281,10 @@ impl Tool for GetWindowStateTool {
+             };
+         // Validate window belongs to pid — Swift's hard error.
+         let windows_for_pid =
+-            tokio::task::spawn_blocking(move || crate::win32::list_windows(Some(pid)))
++            tokio::task::spawn_blocking(move || {
++                crate::win32::windows::find_window_by_pid_and_handle(pid, hwnd)
++                    .into_iter().collect::<Vec<_>>()
++            })
+                 .await
+                 .unwrap_or_default();
+         if !windows_for_pid.iter().any(|w| w.hwnd == hwnd) {
+diff --git a/libs/cua-driver/rust/crates/platform-windows/src/uia/mod.rs b/libs/cua-driver/rust/crates/platform-windows/src/uia/mod.rs
+index 193d898..1d77c73 100644
+--- a/libs/cua-driver/rust/crates/platform-windows/src/uia/mod.rs
++++ b/libs/cua-driver/rust/crates/platform-windows/src/uia/mod.rs
+@@ -17,7 +17,7 @@ use windows::Win32::UI::Accessibility::{
+     CUIAutomation, IUIAutomation, IUIAutomationCacheRequest, IUIAutomationElement,
+     IUIAutomationExpandCollapsePattern, IUIAutomationInvokePattern,
+     IUIAutomationSelectionItemPattern, IUIAutomationTogglePattern, ToggleState_Off, ToggleState_On,
+-    TreeScope_Children, TreeScope_Subtree, UIA_AutomationIdPropertyId,
++    TreeScope_Children, TreeScope_Element, TreeScope_Subtree, UIA_AutomationIdPropertyId,
+     UIA_BoundingRectanglePropertyId, UIA_ControlTypePropertyId, UIA_ExpandCollapsePatternId,
+     UIA_HelpTextPropertyId, UIA_InvokePatternId, UIA_IsEnabledPropertyId,
+     UIA_IsOffscreenPropertyId, UIA_NamePropertyId, UIA_ProcessIdPropertyId,
+@@ -302,8 +302,14 @@ unsafe fn walk_tree_unsafe(
+         let _ = cache_req.AddPattern(*pat);
+     }
+ 
+-    // Fetch entire subtree in one call.
+-    let _ = cache_req.SetTreeScope(TreeScope_Subtree);
++    // Explicitly narrowed walks must bound provider work, not just truncate an
++    // already fetched subtree. Keep bulk caching for the ordinary full walk.
++    let bounded_fetch = max_elements < DEFAULT_MAX_TOTAL_ELEMENTS || max_depth < DEFAULT_MAX_DEPTH;
++    let _ = cache_req.SetTreeScope(if bounded_fetch {
++        TreeScope_Element
++    } else {
++        TreeScope_Subtree
++    });
+ 
+     // Apply control-view filter (same as ControlViewWalker).
+     if let Ok(ctrl_cond) = automation.ControlViewCondition() {
+@@ -389,18 +395,44 @@ unsafe fn walk_tree_unsafe(
+     let mut counter = 0usize;
+     let mut total = 0usize;
+ 
+-    walk_cached_bounded(
+-        &root_elem,
+-        0,
+-        None,
+-        false,
+-        &mut nodes,
+-        &mut lines,
+-        &mut counter,
+-        &mut total,
+-        max_elements,
+-        max_depth,
+-    );
++    if bounded_fetch {
++        let walker = match automation.ControlViewWalker() {
++            Ok(walker) => walker,
++            Err(error) => {
++                return UiaTreeResult {
++                    tree_markdown: format!("ControlViewWalker failed: {error}"),
++                    nodes: Vec::new(),
++                }
++            }
++        };
++        walk_provider_bounded(
++            &root_elem,
++            &cache_req,
++            &walker,
++            0,
++            None,
++            false,
++            &mut nodes,
++            &mut lines,
++            &mut counter,
++            &mut total,
++            max_elements,
++            max_depth,
++        );
++    } else {
++        walk_cached_bounded(
++            &root_elem,
++            0,
++            None,
++            false,
++            &mut nodes,
++            &mut lines,
++            &mut counter,
++            &mut total,
++            max_elements,
++            max_depth,
++        );
++    }
+ 
+     // Fallback for CoreWindow-class apps (Calculator, Settings, older UWPs).
+     // `ElementFromHandle(hwnd)` on a `Windows.UI.Core.CoreWindow` HWND returns
+@@ -418,7 +450,7 @@ unsafe fn walk_tree_unsafe(
+     // wrapper-only node from the primary walk stays the result — better than
+     // erasing it AND leaving the consumed `MAX_TOTAL_ELEMENTS` budget intact
+     // for the fallback (which would then truncate large trees prematurely).
+-    if nodes.iter().filter(|n| n.element_index.is_some()).count() == 0 {
++    if !bounded_fetch && nodes.iter().filter(|n| n.element_index.is_some()).count() == 0 {
+         // Skip the desktop-root walk-by-pid fallback for VCL / SAL
+         // targets (LibreOffice, OpenOffice). The fallback does its own
+         // `BuildUpdatedCache(TreeScope.Subtree)` per matched top-level
+@@ -648,6 +680,84 @@ unsafe fn walk_cached(
+     );
+ }
+ 
++#[allow(clippy::too_many_arguments)]
++unsafe fn walk_provider_bounded(
++    element: &IUIAutomationElement,
++    cache_req: &IUIAutomationCacheRequest,
++    walker: &windows::Win32::UI::Accessibility::IUIAutomationTreeWalker,
++    depth: usize,
++    parent_index: Option<usize>,
++    in_web_content: bool,
++    nodes: &mut Vec<UiaNode>,
++    lines: &mut Vec<(usize, String)>,
++    counter: &mut usize,
++    total: &mut usize,
++    max_elements: usize,
++    max_depth: usize,
++) {
++    if depth > max_depth || *total >= max_elements {
++        return;
++    }
++    let cached = match element.BuildUpdatedCache(cache_req) {
++        Ok(cached) => cached,
++        Err(error) => {
++            // Charge failed nodes to the same budget; do not retry indefinitely.
++            *total += 1;
++            lines.push((depth, format!("- <UIA node unavailable: {error}>")));
++            return;
++        }
++    };
++    let before = nodes.len();
++    let web_child =
++        in_web_content || read_cached_control_type(&cached).eq_ignore_ascii_case("Document");
++    // Element-only cache has no children. Reuse the established node renderer
++    // and retained action handles without a second representation.
++    walk_cached_bounded(
++        &cached,
++        depth,
++        parent_index,
++        in_web_content,
++        nodes,
++        lines,
++        counter,
++        total,
++        max_elements,
++        depth,
++    );
++    let emitted_parent = if nodes.len() > before {
++        nodes
++            .last()
++            .and_then(|node| node.element_index)
++            .or(parent_index)
++    } else {
++        parent_index
++    };
++    if depth >= max_depth || *total >= max_elements {
++        return;
++    }
++    let mut next = walker.GetFirstChildElement(element).ok();
++    while let Some(child) = next {
++        walk_provider_bounded(
++            &child,
++            cache_req,
++            walker,
++            depth + 1,
++            emitted_parent,
++            web_child,
++            nodes,
++            lines,
++            counter,
++            total,
++            max_elements,
++            max_depth,
++        );
++        if *total >= max_elements {
++            break;
++        }
++        next = walker.GetNextSiblingElement(&child).ok();
++    }
++}
++
+ #[allow(clippy::too_many_arguments)]
+ unsafe fn walk_cached_bounded(
+     element: &IUIAutomationElement,
+diff --git a/libs/cua-driver/rust/crates/platform-windows/src/win32/windows.rs b/libs/cua-driver/rust/crates/platform-windows/src/win32/windows.rs
+index e68fe10..7f8edba 100644
+--- a/libs/cua-driver/rust/crates/platform-windows/src/win32/windows.rs
++++ b/libs/cua-driver/rust/crates/platform-windows/src/win32/windows.rs
+@@ -14,7 +14,8 @@
+ //!    `FindAll(TreeScope::Children, ...)` makes no z-order guarantee, so we
+ //!    deliberately do NOT let it reorder anything Win32 already reported.
+ //!
+-//! Both sources apply the same filters (visible, non-empty title). Minimized
++//! Win32 also retains visible untitled owned palettes and native popup menus;
++//! the UIA discovery source retains its non-empty-title filter. Minimized
+ //! windows remain addressable and are reported as off-screen so callers can
+ //! restore them explicitly. The `filter_pid` argument is applied to the merged
+ //! list so the union/dedupe pipeline runs unconditionally.
+@@ -218,14 +219,14 @@ fn window_info_by_handle(hwnd: u64) -> Option<WindowInfo> {
+         return None;
+     }
+     let title_len = unsafe { GetWindowTextLengthW(native) };
+-    if title_len == 0 {
++    if title_len == 0 && !is_visible_owned_surface(native, pid) {
+         return None;
+     }
+     let mut buf = vec![0u16; (title_len + 1) as usize];
+     unsafe { GetWindowTextW(native, &mut buf) };
+     let title_len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+     let title = String::from_utf16_lossy(&buf[..title_len]);
+-    if title.trim().is_empty() {
++    if title.trim().is_empty() && !is_visible_owned_surface(native, pid) {
+         return None;
+     }
+     let minimized = unsafe { IsIconic(native) }.as_bool();
+@@ -281,7 +282,7 @@ unsafe extern "system" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
+ 
+     // Get title (skip empty).
+     let title_len = GetWindowTextLengthW(hwnd);
+-    if title_len == 0 {
++    if title_len == 0 && !is_visible_owned_surface(hwnd, pid) {
+         return TRUE;
+     }
+     let mut buf = vec![0u16; (title_len + 1) as usize];
+@@ -290,7 +291,7 @@ unsafe extern "system" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
+         let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+         String::from_utf16_lossy(&buf[..len])
+     };
+-    if title.trim().is_empty() {
++    if title.trim().is_empty() && !is_visible_owned_surface(hwnd, pid) {
+         return TRUE;
+     }
+ 
+@@ -312,6 +313,30 @@ unsafe extern "system" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
+     TRUE
+ }
+ 
++// Floating command palettes can be visible, owned top-level windows with an
++// empty caption (AutoCAD's WPF command line is one). A caption is not identity.
++// Keep unrelated untitled helpers excluded; the owner must be live, visible,
++// same-process, and the surface must have a nonempty drawable rectangle.
++fn is_visible_owned_surface(hwnd: HWND, pid: u32) -> bool {
++    let mut class = [0u16; 64];
++    let len = unsafe { GetClassNameW(hwnd, &mut class) };
++    // Standard popup menus have neither a caption nor a GW_OWNER on some
++    // native applications. Their process and HWND still provide exact identity.
++    if len > 0 && String::from_utf16_lossy(&class[..len as usize]) == "#32768" {
++        let (_, _, width, height) = get_window_bounds(hwnd);
++        return width > 1 && height > 1;
++    }
++    let owner = unsafe { GetWindow(hwnd, GW_OWNER) }.ok().unwrap_or_default();
++    if owner.0.is_null()
++        || window_owner_pid(owner.0 as u64) != Some(pid)
++        || !unsafe { IsWindowVisible(owner) }.as_bool()
++    {
++        return false;
++    }
++    let (_, _, width, height) = get_window_bounds(hwnd);
++    width > 1 && height > 1
++}
++
+ fn get_window_bounds(hwnd: HWND) -> (i32, i32, i32, i32) {
+     unsafe {
+         let mut rect = RECT::default();

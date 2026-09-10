@@ -1,0 +1,110 @@
+{
+  "date": "2026-09-09",
+  "host": "Windows x64, German AutoCAD 2019, one PC",
+  "driver_sha256": "7fffc7938040b18a1c45105c2fd4475bdc5f4779733a9a07b5e40a2a3b288db7",
+  "workflow": "circle, copy, rotate, undo three changes; 17 prompt-checked answers; full entity/settings read after every unit",
+  "timing_includes": [
+    "client startup and cleanup",
+    "GUI input and observations",
+    "independent full geometry/settings verification",
+    "assertions and evidence logging"
+  ],
+  "timing_excludes": [
+    "AutoCAD launch",
+    "fixture preparation",
+    "model reasoning",
+    "separate visual-capture tests",
+    "app cleanup after all tests"
+  ],
+  "iterations": {
+    "baseline": {
+      "task_seconds": [
+        32.791739499996766,
+        31.890267399998265,
+        32.00313639998785
+      ],
+      "median_task_seconds": 32.00313639998785,
+      "median_console_bytes": 2294,
+      "median_command_seconds": 9.974838500012993,
+      "median_full_verification_seconds": 21.992117300003883
+    },
+    "prompt_and_connection": {
+      "task_seconds": [
+        27.239972300012596,
+        27.355857500006096,
+        28.17973499999789
+      ],
+      "median_task_seconds": 27.355857500006096,
+      "median_console_bytes": 1513,
+      "median_command_seconds": 5.168168099989998,
+      "median_full_verification_seconds": 22.04879090000759
+    },
+    "final": {
+      "task_seconds": [
+        13.409120600001188,
+        13.267703699995764,
+        13.322950200003106
+      ],
+      "median_task_seconds": 13.322950200003106,
+      "median_console_bytes": 1035,
+      "median_command_seconds": 5.524502299987944,
+      "median_full_verification_seconds": 7.6608730999869294
+    }
+  },
+  "task_time_reduction_percent": 58.36986089898313,
+  "task_speed_ratio": 2.40210583388508,
+  "console_byte_reduction_percent": 54.8823016564952,
+  "tokens_measured": false,
+  "benchmark_workflows_passed": 9,
+  "benchmark_full_geometry_checks_passed": 36,
+  "additional_autocad_checks": [
+    "layer",
+    "polyline",
+    "mirror",
+    "move",
+    "scale",
+    "Unicode text and full-depth fallback",
+    "arc",
+    "dimension",
+    "settings restored and saved"
+  ],
+  "reader_contract_checks": [
+    "identity-only",
+    "requested-handle",
+    "explicit-truncation",
+    "wrong-window-refused",
+    "wrong-path-refused"
+  ],
+  "calculator_cases": 6,
+  "calculator_verified_actions": 39,
+  "automated_tests_passed": 23,
+  "focus_monitor": {
+    "samples": 139039,
+    "elapsed_seconds": 1488.3767538000102,
+    "observed_cursor_changes": 0,
+    "observed_foreground_changes": 0,
+    "observed_focus_changes": 0
+  },
+  "visual_capture": {
+    "main_window": "blank in this iteration",
+    "named_drawing_child": "actual drawing visible; zoomed and restored views inspected",
+    "geometry_and_settings_unchanged": true
+  },
+  "saved_fixture_sha256": "f553969cd0b71af65eaed1730bebedbeb4a0f136a304372bc64e5efb76ba7b95",
+  "cleanup": {
+    "calculator": "exact window closed through Cua",
+    "autocad": "Cua QUIT did not close; sole saved fixture closed through normal AutoCAD API Quit",
+    "foreground_fallback": false
+  },
+  "cross_pc_tested": false,
+  "comparative_model_tested": false,
+  "raw_evidence": [
+    "benchmark-results.json",
+    "final-benchmark-results.json",
+    "variety-regression/checks.json",
+    "capture-regression/restored.png",
+    "reader-gates/checks.json",
+    "calculator-evidence-2/summary.json",
+    "focus.jsonl"
+  ]
+}

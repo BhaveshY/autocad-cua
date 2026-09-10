@@ -1,0 +1,26 @@
+{
+  "name": "autocad-cua",
+  "version": "0.1.0+codex.20260910094716",
+  "description": "Native AutoCAD scripting plus Cua visual control, with concise routing skills, exact job hashes and independent verification.",
+  "author": {
+    "name": "AutoCAD Cua contributors"
+  },
+  "skills": "./skills/",
+  "license": "MIT",
+  "interface": {
+    "displayName": "AutoCAD Cua",
+    "shortDescription": "Native AutoCAD scripting and Cua visual control.",
+    "longDescription": "AutoCAD native scripting and Cua GUI control with exact targets, compact CAD skills and independent verification. Controlled-use preview; other editions and versions require local acceptance.",
+    "developerName": "AutoCAD Cua contributors",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Check AutoCAD Cua setup on this PC.",
+      "Draw this dimensioned plan in AutoCAD in the background."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

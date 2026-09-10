@@ -1,0 +1,175 @@
+{
+  "host": {
+    "windows_build": "26200.9445",
+    "architecture": "x64",
+    "autocad": "2019 German",
+    "powerpoint": "16.0.20326.20132",
+    "thunderbird": "153.2.0",
+    "calculator": "11.2607.0.0"
+  },
+  "checks": [
+    {
+      "case": "rectangle vertices and 12 square metre area",
+      "status": "passed"
+    },
+    {
+      "case": "new layer and circle",
+      "status": "passed"
+    },
+    {
+      "case": "copy displacement",
+      "status": "passed"
+    },
+    {
+      "case": "move displacement",
+      "status": "passed"
+    },
+    {
+      "case": "scale around centre",
+      "status": "passed"
+    },
+    {
+      "case": "90 degree rotation about another point",
+      "status": "passed"
+    },
+    {
+      "case": "Unicode annotation",
+      "status": "passed"
+    },
+    {
+      "case": "closed concave outline",
+      "status": "passed"
+    },
+    {
+      "case": "mirrored outline retains original",
+      "status": "passed"
+    },
+    {
+      "case": "4000 mm dimension",
+      "status": "passed"
+    },
+    {
+      "case": "erase selected dimension",
+      "status": "passed"
+    },
+    {
+      "case": "undo restores exact dimension",
+      "status": "passed"
+    },
+    {
+      "case": "redo removes dimension again",
+      "status": "passed"
+    },
+    {
+      "case": "baseline eight entities preserved",
+      "status": "passed"
+    },
+    {
+      "case": "saved drawing and current layer restored",
+      "status": "passed"
+    },
+    {
+      "case": "PowerPoint undo and redo",
+      "status": "passed"
+    },
+    {
+      "case": "PowerPoint persisted three slides and Unicode",
+      "status": "passed"
+    },
+    {
+      "case": "Calculator decimal addition",
+      "status": "passed"
+    },
+    {
+      "case": "Calculator negative subtraction",
+      "status": "passed"
+    },
+    {
+      "case": "Calculator square root",
+      "status": "passed"
+    },
+    {
+      "case": "Calculator backspace",
+      "status": "passed"
+    },
+    {
+      "case": "Calculator percent",
+      "status": "passed"
+    },
+    {
+      "case": "Calculator zero division and recovery",
+      "status": "passed"
+    },
+    {
+      "case": "Thunderbird field value CUA fixture 42",
+      "status": "passed"
+    },
+    {
+      "case": "Thunderbird field value CUA fixture 42 – Büro",
+      "status": "passed"
+    }
+  ],
+  "cad_prompt_checked_answers": 63,
+  "cad_answer_ms_median": 439.13,
+  "cad_answer_ms_range": [
+    378.26,
+    1902.01
+  ],
+  "calculator_verified_clicks": 39,
+  "calculator_click_ms_median": 1237.0457000070019,
+  "foreground_transitions": [
+    {
+      "utc": "2026-09-09T15:29:44.5940600Z",
+      "foreground": 196902,
+      "focus": 196902
+    },
+    {
+      "utc": "2026-09-09T15:33:33.1093722Z",
+      "foreground": 788546,
+      "focus": 788546
+    },
+    {
+      "utc": "2026-09-09T15:33:33.1409290Z",
+      "foreground": 330802,
+      "focus": 330802
+    },
+    {
+      "utc": "2026-09-09T15:34:27.2152367Z",
+      "foreground": 196902,
+      "focus": 196902
+    }
+  ],
+  "cursor_positions": [
+    [
+      437,
+      975
+    ]
+  ],
+  "visual_inspection": {
+    "AutoCAD": "passed: final window capture shows baseline room, text, circles and mirrored outlines with dimensions",
+    "PowerPoint": "passed: third slide Unicode title and three slide thumbnails",
+    "Thunderbird": "passed: exact initial text and Unicode append in search field; no search submitted or mail accessed"
+  },
+  "known_failed_route": {
+    "app": "Thunderbird isolated empty profile",
+    "action": "Skip integration UIA Invoke",
+    "outcome": "foreground self-activation despite background; route stopped, profile closed; no mail accessed"
+  },
+  "limitations": [
+    "single PC; other app versions and models not benchmarked",
+    "no foreground timing or token baseline; no speedup ratio claimed",
+    "10-15ms sampling cannot detect every shorter focus transition",
+    "AutoCAD view recovery causality not established; earlier sessions blank"
+  ],
+  "artifacts": {
+    "CAD variety.dwg": "4b81d7770054370158b316d8b03b32fc0fadfa0bdb0d955a3764728838f6abda",
+    "Presentation test.pptx": "232ad3853aec9aab6f7e99b676f0ece616b6e59f62016a543a9fefd8e3ae82d4",
+    "probe/request-0042-1.png": "df09dcd0bdde075831b9c16f6f3ce3eec181ba072deb4926599dcd7aa7136cbe",
+    "probe/request-0041-1.png": "f5cc133bbe172942b04688e4823d02bd00ee87d34c3a07624a7aca7b315729d2",
+    "tb-field-evidence-2/after-1.png": "a4b6b7eb4fdc03ac1eff538b59cff7c5243c718621809f8d294bfdef91b263ab"
+  },
+  "thunderbird_field_input_ms": [
+    23.49799999501556,
+    17.08679999865126
+  ]
+}

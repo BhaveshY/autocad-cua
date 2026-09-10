@@ -1,0 +1,236 @@
+{
+  "date": "2026-09-09",
+  "driver": "0.25.0-local.1, unchanged binary",
+  "retained_change": "Owned MCP helper processes use --no-overlay by default; show_overlay=True opts into the decorative indicator",
+  "sdk_adopted": false,
+  "sdk_investigation": {
+    "version": "0.25.0",
+    "same_release_sdk_and_bundled_mcp": true,
+    "startup_seconds": {
+      "sdk": 0.011923600002774037,
+      "mcp": 0.11030390000087209
+    },
+    "read_samples": [
+      {
+        "route": "sdk",
+        "seconds": 0.0734087000018917
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06595989999186713
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06551919999765232
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.07337980000011157
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.07400209999468643
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06816559999424499
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06553349999012426
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.0719253999995999
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.07261200000357348
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.07619310000154655
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06995200000528712
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.07446069999423344
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.07471620000433177
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06673729998874478
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06705080000392627
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.07312060000549536
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.0732099000015296
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06746779999230057
+      },
+      {
+        "route": "mcp",
+        "seconds": 0.06768529998953454
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.0728400999942096
+      }
+    ],
+    "median_read_seconds": {
+      "sdk": 0.07329485000082059,
+      "mcp": 0.06725929999811342
+    },
+    "trials": [
+      {
+        "route": "mcp",
+        "seconds": 6.391625800009933,
+        "actions": 5,
+        "verified": true
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.79887709999457,
+        "actions": 5,
+        "verified": true
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.7914923999924213,
+        "actions": 5,
+        "verified": true
+      },
+      {
+        "route": "mcp",
+        "seconds": 6.964989599990076,
+        "actions": 5,
+        "verified": true
+      },
+      {
+        "route": "mcp",
+        "seconds": 6.9488558000011835,
+        "actions": 5,
+        "verified": true
+      },
+      {
+        "route": "sdk",
+        "seconds": 0.7988084999960847,
+        "actions": 5,
+        "verified": true
+      }
+    ],
+    "median_task_seconds": {
+      "sdk": 0.7988084999960847,
+      "mcp": 6.9488558000011835
+    },
+    "tree_and_bounds_equal": true
+  },
+  "overlay_comparison": {
+    "trials": [
+      {
+        "show_overlay": true,
+        "seconds": 6.5253021999960765,
+        "verified_actions": 5,
+        "readbacks": 10
+      },
+      {
+        "show_overlay": false,
+        "seconds": 0.7759981999988668,
+        "verified_actions": 5,
+        "readbacks": 10
+      },
+      {
+        "show_overlay": false,
+        "seconds": 0.782088100007968,
+        "verified_actions": 5,
+        "readbacks": 10
+      },
+      {
+        "show_overlay": true,
+        "seconds": 6.4477557000063825,
+        "verified_actions": 5,
+        "readbacks": 10
+      },
+      {
+        "show_overlay": true,
+        "seconds": 6.465072599996347,
+        "verified_actions": 5,
+        "readbacks": 10
+      },
+      {
+        "show_overlay": false,
+        "seconds": 0.7733882000029553,
+        "verified_actions": 5,
+        "readbacks": 10
+      }
+    ],
+    "median_seconds": {
+      "True": 6.465072599996347,
+      "False": 0.7759981999988668
+    },
+    "includes_startup_and_cleanup": true
+  },
+  "time_reduction_percent": 87.99706905071251,
+  "time_ratio": 8.331298448895614,
+  "calculator_regression": {
+    "cases": 6,
+    "actions": 39,
+    "all_passed": true,
+    "median_input_ms": 5.425499999546446
+  },
+  "automated_tests": 24,
+  "skill_entry_words_before": {
+    "computer-use": 362,
+    "setup": 225,
+    "work": 400
+  },
+  "skill_entry_words_after": {
+    "computer-use": 220,
+    "setup": 138,
+    "work": 243
+  },
+  "skill_entry_reduction_percent": 39.10840932117527,
+  "all_skill_markdown_words": {
+    "before": 3007,
+    "after": 2282
+  },
+  "background_evidence": {
+    "observed_physical_cursor_changes": 0,
+    "foreground_changes_observed": true,
+    "failed_route": "PowerPoint normal startup, including correctly quoted launch",
+    "minimized_launches": "PowerPoint and AutoCAD passed foreground/focus checks",
+    "input_limitation": "Minimized Office Ribbon and AutoCAD command palette were not usable; no blind GUI input was attempted",
+    "monitor_gap": "First passive monitor stopped during a transient missing foreground window after cleanup; the replacement logs such errors and continues",
+    "no_manual_focus_restoration": true
+  },
+  "powerpoint_fallback": {
+    "route": "native COM while minimized, not Cua GUI",
+    "saved_file_checked": true,
+    "original_slide_text_preserved": true,
+    "new_slide_text_and_24pt_font_verified": true
+  },
+  "autocad": "Untouched 20-entity fixture and inspected settings independently verified; prior normal-window drawing tests remain historical evidence",
+  "cross_pc_tested": false,
+  "sdk_scaling": "Primary display 1920x1200 at 1x matched SDK/CLI locally; scaled-display issue was not reproduced or resolved here",
+  "tokens_measured": false,
+  "driver_sha256": "7fffc7938040b18a1c45105c2fd4475bdc5f4779733a9a07b5e40a2a3b288db7",
+  "sources": [
+    "https://cua.ai/docs/how-to-guides/driver/use-sdk-in-process",
+    "https://github.com/trycua/cua/issues/3449"
+  ]
+}

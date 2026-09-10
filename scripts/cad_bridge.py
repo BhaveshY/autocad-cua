@@ -1,0 +1,163 @@
+"""Small native AutoCAD bridge: inspect, freeze a job, execute once, retrieve evidence."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import time
+import uuid
+from desktop_lease import DesktopLease
+from background_guard import BackgroundWatch
+from runtime import ROOT
+
+def digest(data):
+    return hashlib.sha256(json.dumps(data,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
+def lisp_string(text):
+    return '"'+text.replace('\\','\\\\').replace('"','\\"').replace('\r','\\r').replace('\n','\\n')+'"'
+
+def validate_code(code):
+    if not isinstance(code,str) or not code.strip() or len(code)>100000:
+        raise ValueError('Supply 1–100000 characters of noninteractive AutoLISP.')
+    depth=0;string=False;escape=False;comment=False
+    for ch in code:
+        if comment:
+            if ch in '\r\n':comment=False
+        elif string:
+            if escape:escape=False
+            elif ch=='\\':escape=True
+            elif ch=='"':string=False
+        elif ch==';':comment=True
+        elif ch=='"':string=True
+        elif ch=='(':depth+=1
+        elif ch==')':
+            depth-=1
+            if depth<0:raise ValueError('Unbalanced AutoLISP parentheses.')
+    if depth or string:raise ValueError('Unbalanced AutoLISP expression/string.')
+
+class CadBridge:
+    def __init__(self, root=None):
+        self.root=Path(root) if root else Path(os.environ['LOCALAPPDATA'])/'AutoCAD-Cua/native'
+        self.root.mkdir(parents=True,exist_ok=True)
+
+    def host(self, request, folder, timeout=20):
+        tag=uuid.uuid4().hex
+        req=folder/(tag+'-request.json');out=folder/(tag+'-response.json')
+        req.write_text(json.dumps(request,ensure_ascii=False),encoding='utf-8')
+        ps=Path(os.environ['SystemRoot'])/'System32/WindowsPowerShell/v1.0/powershell.exe'
+        try:
+            run=subprocess.run([str(ps),'-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/cad_host.ps1'),'-RequestPath',str(req),'-OutputPath',str(out)],capture_output=True,timeout=timeout,creationflags=subprocess.CREATE_NO_WINDOW)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError('Native call timed out; execution may continue in AutoCAD. Inspect the job result; do not replay.') from error
+        if not out.exists():raise RuntimeError('Native host produced no receipt: '+run.stderr.decode(errors='replace')[:1000])
+        response=json.loads(out.read_text(encoding='utf-8-sig'))
+        if not response['ok']:raise RuntimeError(response['error'])
+        return response['state']
+
+    def inspect(self,pid=None,max_entities=0,handles=None):
+        if type(max_entities) is not int or not 0<=max_entities<=10000:raise ValueError('max_entities must be 0–10000; 0 reads identity only.')
+        if pid is not None and (type(pid) is not int or pid<=0):raise ValueError('Invalid PID.')
+        if handles is not None and (not isinstance(handles,list) or len(handles)>10000 or any(not isinstance(h,str) or not re.fullmatch('[0-9A-Fa-f]+',h) for h in handles)):raise ValueError('Handles must be hexadecimal strings.')
+        folder=self.root/('inspect-'+uuid.uuid4().hex);folder.mkdir()
+        return self.host(dict(operation='inspect',pid=pid,max_entities=max_entities or (len(handles) if handles else 0),handles=handles),folder)
+
+    def prepare(self,target,code,precondition,description,undo_group=True):
+        if type(undo_group) is not bool:raise ValueError('undo_group must be boolean.')
+        validate_code(code);validate_code(precondition)
+        required={'prog_id','pid','window','document_window','process_started','path','file_sha256'}
+        if not isinstance(target,dict) or set(target)!=required:raise ValueError('Use the complete target returned by cad_inspect.')
+        if not re.fullmatch(r'AutoCAD\.Application\.\d+(\.\d+)?',target['prog_id']) or any(type(target[k]) is not int or target[k]<=0 for k in ('pid','window','document_window')):raise ValueError('Invalid AutoCAD target.')
+        if not isinstance(description,str) or not description.strip():raise ValueError('Describe the intended drawing changes.')
+        job=uuid.uuid4().hex;folder=self.root/job;folder.mkdir()
+        plan=dict(target=target,code=code,precondition=precondition,description=description,undo_group=undo_group)
+        (folder/'plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2),encoding='utf-8')
+        return dict(job=job,sha256=digest(plan),plan=plan,evidence=str(folder),note='Prepared only; generated Lisp is trusted code, not sandboxed. Check task scope before execution.')
+
+    def folder(self,job):
+        if not isinstance(job,str) or not re.fullmatch('[0-9a-f]{32}',job):raise ValueError('Invalid job ID.')
+        folder=self.root/job
+        if not (folder/'plan.json').is_file():raise ValueError('Unknown job ID.')
+        return folder
+
+    def result(self,job,resolve_after_inspection=False):
+        if type(resolve_after_inspection) is not bool:raise ValueError('Resolution flag must be boolean.')
+        folder=self.folder(job);state=folder/'execution.json';marker=folder/'completion.txt'
+        answer=json.loads(state.read_text()) if state.exists() else {'status':'prepared'}
+        if resolve_after_inspection and state.exists() and not marker.exists():
+            plan=json.loads((folder/'plan.json').read_text(encoding='utf-8'))
+            lease=DesktopLease()
+            try:
+                fresh=self.host(dict(operation='inspect',pid=plan['target']['pid'],max_entities=0),folder)
+                for key in ('pid','window','document_window','process_started','path'):
+                    if fresh['target'][key]!=plan['target'][key]:raise RuntimeError('Recovery target changed; inspect the original drawing.')
+                if fresh['cmdactive'] or fresh['cmdnames']:raise RuntimeError('Cannot resolve a job while AutoCAD is busy.')
+                answer['resolved_after_inspection']=True
+                answer['resolution_state']=fresh
+                state.write_text(json.dumps(answer,indent=2))
+            finally:lease.close()
+        if marker.exists():
+            lines=marker.read_text(encoding='utf-8',errors='replace').splitlines()
+            answer['status']='executed' if lines and lines[0]=='ok' else 'failed'
+            answer['native_result']='\n'.join(lines[1:])[:12000]
+        answer.update(job=job,evidence=str(folder),geometry_verified=False)
+        return answer
+
+    def commands(self,plan,marker,job):
+        source=self.command(plan,marker);symbol='cbj'+job
+        commands=[f'(progn (setq {symbol} "") (princ))\n']
+        for i in range(0,len(source),192):
+            commands.append(f'(progn (setq {symbol} (strcat {symbol} {lisp_string(source[i:i+192])})) (princ))\n')
+        commands.append(f'(eval (read {symbol}))\n')
+        commands.append(f'(progn (setq {symbol} nil) (princ))\n')
+        return commands
+
+    def command(self,plan,marker):
+        t=plan['target']
+        binding=f'(and (= (strcase (strcat (getvar "DWGPREFIX") (getvar "DWGNAME"))) (strcase {lisp_string(t["path"])})) (= (vla-get-HWND (vla-get-ActiveDocument (vlax-get-acad-object))) {t["document_window"]}))'
+        # Evaluate the source as one Lisp form: no multiline command/prompt guessing.
+        body='(progn\n'+plan['code']+'\n)'
+        pre='(progn\n'+plan['precondition']+'\n)'
+        start_undo='(vla-StartUndoMark cb-doc) (setq cb-started T)' if plan['undo_group'] else ''
+        return f'''(progn (vl-load-com) ((lambda (/ cb-doc cb-value cb-file cb-started cb-phase)
+ (setq cb-value (vl-catch-all-apply '(lambda ()
+  (setq cb-phase "drawing binding") (if (not {binding}) (exit))
+  (setq cb-phase "precondition") (if (not {pre}) (exit))
+  (setq cb-phase "execution")
+  (setq cb-doc (vla-get-ActiveDocument (vlax-get-acad-object)))
+  {start_undo}
+  {body}) nil))
+ (if cb-started (vl-catch-all-apply 'vla-EndUndoMark (list cb-doc)))
+ (setq cb-file (open {lisp_string(str(marker))} "w"))
+ (if cb-file (progn (write-line (if (vl-catch-all-error-p cb-value) "error" "ok") cb-file)
+  (write-line (if (vl-catch-all-error-p cb-value) (strcat cb-phase ": " (vl-catch-all-error-message cb-value)) (vl-princ-to-string cb-value)) cb-file) (close cb-file)))
+ )) (princ))\n'''
+
+    def execute(self,job,sha256,allow_interruption=False):
+        if type(allow_interruption) is not bool:raise ValueError('allow_interruption must be boolean.')
+        folder=self.folder(job);plan=json.loads((folder/'plan.json').read_text(encoding='utf-8'))
+        if sha256!=digest(plan):raise ValueError('Prepared job hash mismatch; nothing dispatched.')
+        lease=DesktopLease();watch=None;state=folder/'execution.json'
+        try:
+            if state.exists():return self.result(job)
+            for other in self.root.glob('*/execution.json'):
+                if other.parent!=folder and not (other.parent/'completion.txt').exists() and not json.loads(other.read_text()).get('resolved_after_inspection'):
+                    raise RuntimeError('A previous native job has no completion receipt: '+other.parent.name+'. Inspect its outcome before another job; no replay.')
+            fresh=self.host(dict(operation='inspect',target=plan['target'],pid=plan['target']['pid'],max_entities=0),folder)
+            if fresh['cmdactive'] or fresh['cmdnames']:raise RuntimeError('AutoCAD has an active command; inspect it before execution.')
+            watch=BackgroundWatch().start()
+            if not allow_interruption:watch.check_target(plan['target']['pid'],plan['target']['window'])
+            receipt=dict(status='uncertain',sha256=sha256,allow_interruption=allow_interruption,started=time.time(),note='Job will never be automatically dispatched twice. Failure may leave partial drawing changes; inspect before Undo/recovery.')
+            with state.open('x') as file:json.dump(receipt,file)
+            try:
+                self.host(dict(operation='execute',target=plan['target'],pid=plan['target']['pid'],commands=self.commands(plan,folder/'completion.txt',job)),folder)
+                deadline=time.monotonic()+5
+                while not (folder/'completion.txt').exists() and time.monotonic()<deadline:time.sleep(.05)
+            except Exception as error:receipt['error']=str(error)
+            receipt['elapsed_seconds']=time.time()-receipt['started']
+            receipt['focus_change']=watch.finish();watch=None
+            state.write_text(json.dumps(receipt,indent=2))
+            return self.result(job)
+        finally:
+            if watch:watch.finish()
+            lease.close()
