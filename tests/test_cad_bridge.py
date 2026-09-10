@@ -79,4 +79,40 @@ class NativeTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.b.inspect(handles=['not-a-handle'])
   self.b.host.assert_not_called()
 
+ def test_partial_or_invalid_receipt_keeps_next_job_blocked(self):
+  for content in ('', 'ok', 'ok\n', 'ok\nunfinished', 'unknown\nvalue\n'):
+   with self.subTest(content=content):
+    j=self.job();folder=self.b.folder(j['job'])
+    (folder/'execution.json').write_text('{"status":"uncertain"}')
+    (folder/'completion.txt').write_text(content)
+    self.assertEqual(self.b.result(j['job'])['status'],'uncertain')
+    other=self.job()
+    with self.assertRaisesRegex(RuntimeError,'previous native job'):
+     self.b.execute(other['job'],other['sha256'])
+    self.b.host.assert_not_called()
+    (folder/'completion.txt').write_text('error\nresolved test fixture\n')
+
+ def test_partial_receipt_can_be_resolved_only_after_idle_inspection(self):
+  j=self.job();folder=self.b.folder(j['job'])
+  (folder/'execution.json').write_text('{"status":"uncertain"}')
+  (folder/'completion.txt').write_text('ok\n')
+  self.state['cmdactive']=1
+  with self.assertRaisesRegex(RuntimeError,'busy'):self.b.result(j['job'],True)
+  self.state['cmdactive']=0
+  answer=self.b.result(j['job'],True)
+  self.assertEqual(answer['status'],'uncertain')
+  self.assertTrue(answer['resolved_after_inspection'])
+
+ def test_unreadable_receipt_remains_uncertain(self):
+  from cad_bridge import completion
+  with patch.object(Path,'read_text',side_effect=PermissionError('writer owns file')):
+   self.assertIsNone(completion(Path(self.temp.name)))
+
+ def test_generated_receipt_is_closed_before_publication(self):
+  j=self.job();source=self.b.command(j['plan'],Path(self.temp.name)/'completion.txt')
+  validate_code(source)
+  self.assertIn('completion.txt.tmp',source)
+  self.assertLess(source.index('(close cb-file)'),source.index('(vl-file-rename'))
+
+
 if __name__=='__main__':unittest.main()

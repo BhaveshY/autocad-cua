@@ -194,8 +194,10 @@ class Client:
                 self.process.terminate()
                 self.process.wait(timeout=5)
         finally:
-            self.log.close()
-            self.lease.close()
+            # A timed-out termination is still an owner, even during cleanup.
+            if self.process.poll() is not None:
+                self.log.close()
+                self.lease.close()
 
 
 def title_key(title):
@@ -279,8 +281,6 @@ def run(options, client=None):
             title = metadata.get('window_title', '')
             if title_key(options.expected_title) != title_key(title):
                 raise RuntimeError(f'Drawing title changed: {title!r}; stopped before input.')
-            if 'before' in step and not re.search(step['before'], current, re.IGNORECASE):
-                raise RuntimeError(f'Unexpected prompt before step {index}: {current!r}')
             _, input_ms = client.call('type_text', dict(target, delivery_mode='background', text=step['text'] + '\n'))
             deadline = time.monotonic() + options.prompt_timeout
             while True:

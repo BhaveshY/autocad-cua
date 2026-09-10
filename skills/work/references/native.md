@@ -27,7 +27,7 @@ Before scaling unfamiliar work, check required methods/properties read-only (for
 
 - Repeating `cad_execute` for the same job returns its existing record; it does not run again. Changed plan/hash is refused. Prepare a new job only after reviewing the actual state.
 - Errors can leave partial changes; there is no automatic rollback promise. If no intervening changes occurred, prepare `(command-s "._UNDO" "1")` with `undo_group:false`; verify exact restoration. Saving and read-only queries can also use `undo_group:false` to avoid unnecessary Undo marks.
-- Missing receipt/timeouts are uncertain, not failure proof. Poll `cad_result`; native execution may still finish. Use Cua to inspect/cancel a demonstrated incomplete prompt. Once target and relevant geometry are inspected and AutoCAD is idle, `cad_result(resolve_after_inspection:true)` permits a new job without marking the old one successful.
+- Missing, incomplete or unreadable receipts/timeouts are uncertain, not failure proof. Poll `cad_result`; native execution may still finish. Use Cua to inspect/cancel a demonstrated incomplete prompt. Once target and relevant geometry are inspected and AutoCAD is idle, `cad_result(resolve_after_inspection:true)` permits a new job without marking the old one successful.
 - A stale drawing/file hash requires fresh inspection and preparation. Do not substitute another drawing or clear a job record. AutoCAD's command errors may be localized; raw error text stays with the job evidence.
 - Older AutoLISP has string-literal limits. Construct long text with `strcat` pieces instead of one oversized literal. The bridge handles transport chunking; do not add sleeps or hand-send generated scripts through GUI typing.
 

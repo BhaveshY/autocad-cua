@@ -102,4 +102,31 @@ class FailureTests(unittest.TestCase):
             self.assertEqual(client.rpc.call_count, 1)
 
 
+class CleanupTests(unittest.TestCase):
+    def client(self):
+        client=runner.Client.__new__(runner.Client)
+        client.process=Mock();client.log=Mock();client.lease=Mock()
+        return client
+
+    def test_termination_timeout_retains_ownership_until_confirmed_exit(self):
+        import subprocess
+        client=self.client()
+        client.process.wait.side_effect=subprocess.TimeoutExpired('driver',5)
+        client.process.poll.return_value=None
+        with self.assertRaises(subprocess.TimeoutExpired):client.stop_process()
+        client.lease.close.assert_not_called();client.log.close.assert_not_called()
+        client.process.wait.side_effect=None;client.process.poll.return_value=0
+        client.stop_process()
+        client.lease.close.assert_called_once();client.log.close.assert_called_once()
+
+    def test_server_retains_client_when_cleanup_fails(self):
+        from mcp_server import Server
+        server=Server();client=Mock();server.client=client;server.session='owner'
+        client.close.side_effect=TimeoutError('still running')
+        with self.assertRaises(TimeoutError):server.close()
+        self.assertIs(server.client,client);self.assertEqual(server.session,'owner')
+        client.close.side_effect=None;server.close()
+        self.assertIsNone(server.client);self.assertIsNone(server.session)
+
+
 if __name__ == '__main__': unittest.main()

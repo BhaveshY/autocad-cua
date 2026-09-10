@@ -39,12 +39,15 @@ try {
  } elseif($request.operation -eq 'inspect'){
   if($request.max_entities -or $request.handles){
    $geometry=$OutputPath+'.geometry.json'
-   $params=@{ExpectedWindow=$target.window;ExpectedPath=$target.path;ProgId=$target.prog_id;OutputPath=$geometry;MaxEntities=[int]$request.max_entities}
+   $params=@{ExpectedWindow=$target.window;ExpectedDocumentWindow=$target.document_window;ExpectedPath=$target.path;ProgId=$target.prog_id;OutputPath=$geometry;MaxEntities=[int]$request.max_entities}
    if($request.handles){$params.Handles=(@($request.handles)-join ',')}
    & (Join-Path $PSScriptRoot 'read_drawing.ps1') @params
    $state.geometry=Get-Content -LiteralPath $geometry -Raw -Encoding UTF8|ConvertFrom-Json
   }
  }else{throw 'Unknown native operation'}
+ if([long](Prop $app HWND) -ne $target.window -or
+    [long](Prop (Prop $app ActiveDocument) HWND) -ne $target.document_window -or
+    [string](Prop (Prop $app ActiveDocument) FullName) -cne $target.path){throw 'Active drawing changed before receipt'}
  @{ok=$true;state=$state}|ConvertTo-Json -Depth 12|Set-Content -LiteralPath $OutputPath -Encoding UTF8
 }catch{
  @{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Depth 4|Set-Content -LiteralPath $OutputPath -Encoding UTF8

@@ -95,11 +95,9 @@ class Server:
 
     def close(self):
         if self.client:
-            try:
-                self.client.close()
-            finally:
-                self.client = None
-                self.session = None
+            self.client.close()
+            self.client = None
+            self.session = None
 
 
 def main():

@@ -36,6 +36,17 @@ def validate_code(code):
             if depth<0:raise ValueError('Unbalanced AutoLISP parentheses.')
     if depth or string:raise ValueError('Unbalanced AutoLISP expression/string.')
 
+def completion(folder):
+    """Only a complete receipt releases an uncertain job; old receipts still work."""
+    try:
+        text = (folder/'completion.txt').read_text(encoding='utf-8', errors='replace')
+    except (FileNotFoundError, PermissionError):
+        return None
+    lines = text.splitlines()
+    if len(lines) < 2 or lines[0] not in ('ok', 'error') or not text.endswith('\n'):
+        return None
+    return lines
+
 class CadBridge:
     def __init__(self, root=None):
         self.root=Path(root) if root else Path(os.environ['LOCALAPPDATA'])/'AutoCAD-Cua/native'
@@ -82,9 +93,9 @@ class CadBridge:
 
     def result(self,job,resolve_after_inspection=False):
         if type(resolve_after_inspection) is not bool:raise ValueError('Resolution flag must be boolean.')
-        folder=self.folder(job);state=folder/'execution.json';marker=folder/'completion.txt'
+        folder=self.folder(job);state=folder/'execution.json';lines=completion(folder)
         answer=json.loads(state.read_text()) if state.exists() else {'status':'prepared'}
-        if resolve_after_inspection and state.exists() and not marker.exists():
+        if resolve_after_inspection and state.exists() and lines is None:
             plan=json.loads((folder/'plan.json').read_text(encoding='utf-8'))
             lease=DesktopLease()
             try:
@@ -96,8 +107,8 @@ class CadBridge:
                 answer['resolution_state']=fresh
                 state.write_text(json.dumps(answer,indent=2))
             finally:lease.close()
-        if marker.exists():
-            lines=marker.read_text(encoding='utf-8',errors='replace').splitlines()
+        lines=completion(folder)
+        if lines is not None:
             answer['status']='executed' if lines and lines[0]=='ok' else 'failed'
             answer['native_result']='\n'.join(lines[1:])[:12000]
         answer.update(job=job,evidence=str(folder),geometry_verified=False)
@@ -128,9 +139,10 @@ class CadBridge:
   {start_undo}
   {body}) nil))
  (if cb-started (vl-catch-all-apply 'vla-EndUndoMark (list cb-doc)))
- (setq cb-file (open {lisp_string(str(marker))} "w"))
+ (setq cb-file (open {lisp_string(str(marker)+".tmp")} "w"))
  (if cb-file (progn (write-line (if (vl-catch-all-error-p cb-value) "error" "ok") cb-file)
-  (write-line (if (vl-catch-all-error-p cb-value) (strcat cb-phase ": " (vl-catch-all-error-message cb-value)) (vl-princ-to-string cb-value)) cb-file) (close cb-file)))
+  (write-line (if (vl-catch-all-error-p cb-value) (strcat cb-phase ": " (vl-catch-all-error-message cb-value)) (vl-princ-to-string cb-value)) cb-file) (close cb-file)
+  (vl-file-rename {lisp_string(str(marker)+".tmp")} {lisp_string(str(marker))})))
  )) (princ))\n'''
 
     def execute(self,job,sha256,allow_interruption=False):
@@ -141,7 +153,7 @@ class CadBridge:
         try:
             if state.exists():return self.result(job)
             for other in self.root.glob('*/execution.json'):
-                if other.parent!=folder and not (other.parent/'completion.txt').exists() and not json.loads(other.read_text()).get('resolved_after_inspection'):
+                if other.parent!=folder and completion(other.parent) is None and not json.loads(other.read_text()).get('resolved_after_inspection'):
                     raise RuntimeError('A previous native job has no completion receipt: '+other.parent.name+'. Inspect its outcome before another job; no replay.')
             fresh=self.host(dict(operation='inspect',target=plan['target'],pid=plan['target']['pid'],max_entities=0),folder)
             if fresh['cmdactive'] or fresh['cmdnames']:raise RuntimeError('AutoCAD has an active command; inspect it before execution.')
@@ -152,7 +164,7 @@ class CadBridge:
             try:
                 self.host(dict(operation='execute',target=plan['target'],pid=plan['target']['pid'],commands=self.commands(plan,folder/'completion.txt',job)),folder)
                 deadline=time.monotonic()+5
-                while not (folder/'completion.txt').exists() and time.monotonic()<deadline:time.sleep(.05)
+                while completion(folder) is None and time.monotonic()<deadline:time.sleep(.05)
             except Exception as error:receipt['error']=str(error)
             receipt['elapsed_seconds']=time.time()-receipt['started']
             receipt['focus_change']=watch.finish();watch=None

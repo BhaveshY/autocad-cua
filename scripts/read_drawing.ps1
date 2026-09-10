@@ -3,6 +3,7 @@ param(
  [Parameter(Mandatory=$true)][string]$ExpectedPath,
  [Parameter(Mandatory=$true)][string]$OutputPath,
  [Parameter(Mandatory=$true)][string]$ProgId,
+ [long]$ExpectedDocumentWindow=0,
  [switch]$IdentityOnly,
  [switch]$Detailed,
  [string]$Handles,
@@ -18,14 +19,26 @@ function Read-Method($Object,[string]$Name,[object[]]$Arguments) {
  try { return ,($Object.GetType().InvokeMember($Name,[Reflection.BindingFlags]::InvokeMethod,$null,$Object,$Arguments)) }
  catch { throw "AutoCAD read method $Name failed: $($_.Exception.Message)" }
 }
+function Assert-DrawingBinding($App,[long]$Window,[string]$Path,[long]$DocumentWindow) {
+ $active=Read-Property $App ActiveDocument
+ if((Read-Property $App HWND) -ne $Window -or
+    (Read-Property $active FullName) -cne $Path -or
+    (Read-Property $active HWND) -ne $DocumentWindow){
+  throw 'Exact drawing binding changed; no acceptance output written.'
+ }
+}
 $app=[Runtime.InteropServices.Marshal]::GetActiveObject($ProgId)
 $window=[long](Read-Property $app HWND)
 $document=Read-Property $app ActiveDocument
 $path=[string](Read-Property $document FullName)
-if($window -ne $ExpectedWindow -or $path -ne $ExpectedPath){throw 'Exact drawing binding changed.'}
+$documentWindow=[long](Read-Property $document HWND)
+if(-not $ExpectedDocumentWindow){$ExpectedDocumentWindow=$documentWindow}
+if($window -ne $ExpectedWindow -or $path -cne $ExpectedPath -or $documentWindow -ne $ExpectedDocumentWindow){
+ throw 'Exact drawing binding changed; no acceptance output written.'
+}
 $space=Read-Property $document ModelSpace
 $count=[int](Read-Property $space Count)
-$entities=@()
+$entities=[Collections.Generic.List[object]]::new()
 $selectedHandles=@($Handles -split ','|Where-Object {$_})
 $readCount=if($IdentityOnly){0}elseif($selectedHandles.Count){[Math]::Min($selectedHandles.Count,$MaxEntities)}else{[Math]::Min($count,$MaxEntities)}
 for($i=0;$i -lt $readCount;$i++) {
@@ -55,9 +68,9 @@ for($i=0;$i -lt $readCount;$i++) {
    $item.style_name=Read-Property $entity StyleName
   }
  }
- $entities+=$item
+ $entities.Add($item)
 }
-$state=[ordered]@{utc=[datetime]::UtcNow.ToString('o');window=$window;path=$path;saved=Read-Property $document Saved;model_space_count=$count;cmdactive=Read-Method $document GetVariable @('CMDACTIVE');cmdnames=Read-Method $document GetVariable @('CMDNAMES');entities=$entities}
+$state=[ordered]@{utc=[datetime]::UtcNow.ToString('o');window=$window;document_window=$documentWindow;path=$path;saved=Read-Property $document Saved;model_space_count=$count;cmdactive=Read-Method $document GetVariable @('CMDACTIVE');cmdnames=Read-Method $document GetVariable @('CMDNAMES');entities=$entities}
 $state.returned_entity_count=$entities.Count
 $state.scope=if($IdentityOnly){'identity_only'}elseif($selectedHandles.Count){'requested_handles'}else{'model_space'}
 $state.complete=if($IdentityOnly){$false}elseif($selectedHandles.Count){$readCount -eq $selectedHandles.Count}else{$readCount -eq $count}
@@ -65,5 +78,5 @@ $state.variables=[ordered]@{}
 foreach($name in @('INSUNITS','TILEMODE','CVPORT','CTAB','OSMODE','ORTHOMODE','SNAPMODE','UCSORG','UCSXDIR','UCSYDIR','CLAYER','DIMSCALE')) {
  $state.variables[$name]=Read-Method $document GetVariable @($name)
 }
-if((Read-Property $app HWND) -ne $ExpectedWindow -or (Read-Property (Read-Property $app ActiveDocument) FullName) -ne $ExpectedPath){throw 'Drawing changed during verification; no acceptance output written.'}
+Assert-DrawingBinding $app $ExpectedWindow $ExpectedPath $ExpectedDocumentWindow
 $state|ConvertTo-Json -Depth 8|Set-Content -Encoding utf8 $OutputPath
