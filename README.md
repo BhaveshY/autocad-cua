@@ -28,6 +28,8 @@ This is a controlled-use preview, not universal app/version certification. Helpe
 
 ## Maintenance
 
+Bundled driver: **0.28.0-local.1**. See [upgrade validation](docs/driver-0.28-acceptance.md).
+
 For future driver versions, use the [compatibility check and upgrade steps](source/UPGRADING.md). Global Cua updates do not replace this plugin's tested runtime; the check adds no overhead to normal tasks.
 
 Run `python -m unittest discover -s tests`. See `runtime.json`, `LICENSE`, `licenses/` and `source/README.md` for the pinned downstream Cua executable, dependency notices and rebuild instructions. This is not an official Cua or Autodesk release. Neither repository needs the other at runtime. Keep shared driver/ownership fixes aligned when updating them; no external shared service is required.

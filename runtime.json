@@ -1,8 +1,8 @@
 {
-  "version": "0.25.0-local.1",
+  "version": "0.28.0-local.1",
   "platform": "windows-x64",
-  "sha256": "7fffc7938040b18a1c45105c2fd4475bdc5f4779733a9a07b5e40a2a3b288db7",
+  "sha256": "3b596e3aa154b161c1778ac20d24b48f8d43b91348fb97f43facc0d81fd080dd",
   "upstream": "https://github.com/trycua/cua",
-  "revision": "45d78fe",
+  "revision": "1b50c02e2d34734f64d2d22f54eb76cc97b4a663",
   "patch": "source/autocad-observation.patch"
 }
