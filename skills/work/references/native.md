@@ -33,6 +33,8 @@ Before scaling unfamiliar work, check required methods/properties read-only (for
 
 MCP is the default interface; a Python caller may import `CadBridge` from bundled `scripts` and reuse it. That uses the same checks and receipts. Direct COM/SDK calls do not inherit them. Use Cua or a supported API for a demonstrated capability gap, not to evade an unresolved native outcome.
 
-For replacement and tested primitives, read [helpers.md](helpers.md) or request `instructions(topic:"native-helpers")`. Use identity-only inspection between non-geometric jobs. Request `handles` and `detailed:true` for corrected text/dimension properties. Keep one full geometry scan for final acceptance instead of rescanning the drawing after every save or setting change.
+For replacement and tested primitives, read [helpers.md](helpers.md) or request `instructions(topic:"native-helpers")`. Use identity-only inspection between non-geometric jobs. Request `handles` and `detailed:true` for corrected text/dimension properties. Small edits need affected-object verification and a visual check; new/replaced plans need one full geometry scan at acceptance. Do not rescan after saves or settings changes.
+
+`saved:false` is normal unsaved state: preserve it when needed, rather than failing and repeating inspection. For small edits to a user-declared disposable fixture, skip extra backups. Replacement jobs still require the plugin's verified backup.
 
 Autodesk references: [SendCommand and asynchronous cases](https://help.autodesk.com/cloudhelp/2021/ENU/AutoCAD-ActiveX-Reference/files/GUID-E13A580D-04CA-46C1-B807-95BB461A0A57.htm), [AutoLISP exception handling](https://help.autodesk.com/cloudhelp/2023/ENU/AutoCAD-AutoLISP-Reference/files/GUID-E08CC2A6-787A-422F-8BD3-18812996794C.htm).

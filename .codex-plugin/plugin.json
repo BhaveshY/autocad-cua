@@ -1,6 +1,6 @@
 {
   "name": "autocad-cua",
-  "version": "0.1.0+codex.20260911093635",
+  "version": "0.1.0+codex.20260911095946",
   "description": "Native AutoCAD scripting plus Cua visual control, with concise routing skills, exact job hashes and independent verification.",
   "author": {
     "name": "AutoCAD Cua contributors"
