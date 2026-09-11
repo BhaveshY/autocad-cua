@@ -8,6 +8,8 @@ Task example: **Use AutoCAD Cua to draw this dimensioned plan in the background 
 
 Native execution requires full AutoCAD with COM/AutoLISP and Windows PowerShell 5.1. Local acceptance covered German AutoCAD 2019; other versions, LT and add-ons need their own checks. No AutoCAD add-in is required. See [native workflow](skills/work/references/native.md), [prior acceptance](docs/release-readiness.md) and [pre-split history](docs/pre-split-readme.md). Historical general-app results do not expand this plugin's scope.
 
+The native bridge retains a drawing task across calls and reconnections. Replacement jobs verify a new backup before clearing model space, and reusable geometry helpers check font/layer prerequisites first. Returned handles support small corrections without redrawing. See [current live acceptance](docs/native-workflow-acceptance.md).
+
 ## Install on a colleague's PC
 
 1. Install/sign in to the Codex desktop app with plugin support. Use Windows x64 and Python 3.10+ (Codex's bundled runtime is detected automatically when available). Install the target application separately.

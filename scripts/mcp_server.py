@@ -24,6 +24,7 @@ class Server:
     def __init__(self):
         self.client = None
         self.session = None
+        self.cad = CadBridge()
         self.tools = json.loads((ROOT / 'scripts/mcp-tools.json').read_text(encoding='utf-8'))
         for tool in self.tools:
             mode = tool['inputSchema']['properties'].get('delivery_mode')
@@ -34,7 +35,7 @@ class Server:
         self.tools += [
             schema('status', 'Verify this plugin and its pinned driver; no app interaction.'),
             schema('instructions', 'Read bundled instructions without filesystem or shell access.',
-                   {'topic': {'type': 'string', 'enum': ['computer-use', 'autocad', 'setup']}}, ['topic']),
+                   {'topic': {'type': 'string', 'enum': ['computer-use', 'autocad', 'setup', 'native-helpers']}}, ['topic']),
             schema('start_session', 'Acquire one GUI workflow. Only set allow_interruption when the user explicitly permits foreground control.',
                    {'allow_interruption': {'type': 'boolean', 'default': False}}),
             schema('launch_app', 'Launch an exact executable minimized, observing startup focus. Discover and verify the resulting window before input.',
@@ -44,9 +45,9 @@ class Server:
                    {'session': {'type': 'string'}}, ['session'])]
         self.tools += [
             schema('cad_inspect','Read live AutoCAD identity, units and optional bounded geometry. Does not launch AutoCAD.',
-                   {'pid':{'type':'integer'},'max_entities':{'type':'integer','minimum':0,'maximum':10000},'handles':{'type':'array','items':{'type':'string'}}}),
+                   {'pid':{'type':'integer'},'max_entities':{'type':'integer','minimum':0,'maximum':10000},'handles':{'type':'array','items':{'type':'string'}},'task':{'type':'string'},'new_task':{'type':'boolean','default':False},'detailed':{'type':'boolean','default':False}}),
             schema('cad_prepare','Freeze task-specific, noninteractive AutoLISP and a drawing precondition. Returns exact hash; does not execute. Trusted code, not a sandbox.',
-                   {'target':{'type':'object'},'code':{'type':'string'},'precondition':{'type':'string'},'description':{'type':'string'},'undo_group':{'type':'boolean','default':True}},['target','code','precondition','description']),
+                   {'target':{'type':'object'},'code':{'type':'string'},'precondition':{'type':'string'},'description':{'type':'string'},'undo_group':{'type':'boolean','default':True},'task':{'type':'string'},'helpers':{'type':'boolean','default':False},'replace_model':{'type':'boolean','default':False},'backup_path':{'type':'string'},'setup_code':{'type':'string','default':'T'}},['target','code','precondition','description']),
             schema('cad_execute','Execute one prepared native job once. Requires its exact hash. Inspect geometry afterward; execution is not acceptance.',
                    {'job':{'type':'string'},'sha256':{'type':'string'},'allow_interruption':{'type':'boolean','default':False}},['job','sha256']),
             schema('cad_result','Retrieve native outcome without replay. After inspecting/recovering an uncertain job, resolve_after_inspection checks idle target and permits a new job; it does not mark the old job successful.',{'job':{'type':'string'},'resolve_after_inspection':{'type':'boolean','default':False}},['job'])]
@@ -61,8 +62,7 @@ class Server:
         if name.startswith('cad_'):
             if name=='cad_execute' and self.client is not None:
                 raise RuntimeError('End the Cua session before native execution; both routes share ownership.')
-            bridge=CadBridge()
-            return result(getattr(bridge,name[4:])(**args))
+            return result(getattr(self.cad,name[4:])(**args))
         if name == 'status':
             pinned = driver_path()
             return result({'plugin_version': json.loads((ROOT / '.codex-plugin/plugin.json').read_text())['version'],
@@ -70,7 +70,7 @@ class Server:
                 'active_session': self.client is not None, 'agent_shell_required': False})
         if name == 'instructions':
             topics = {'computer-use': ['work/references/gui.md', 'work/references/gui-recovery.md'],
-                      'autocad': ['work/SKILL.md', 'work/references/native.md'], 'setup': ['setup/SKILL.md']}
+                      'autocad': ['work/SKILL.md', 'work/references/native.md'], 'setup': ['setup/SKILL.md'], 'native-helpers':['work/references/helpers.md']}
             if args['topic'] not in topics:
                 raise ValueError('Unknown instruction topic.')
             return result({'instructions': '\n\n'.join((ROOT / 'skills' / p).read_text(encoding='utf-8') for p in topics[args['topic']])})

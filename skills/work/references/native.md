@@ -4,7 +4,7 @@ The same plugin exposes four stable tools: `cad_inspect`, `cad_prepare`, `cad_ex
 
 ## Prepare and execute
 
-1. Inspect the intended PID; use the returned `target` unchanged. Save unnamed drawings first. Identity includes process start, application/document HWNDs, full path and on-disk SHA-256. Unsaved edits need task-specific preconditions; file identity alone cannot detect them.
+1. Inspect once to bind the intended drawing; retain the returned `task` across reconnections. Subsequent inspections remain bound even after saves change its disk hash. Save unnamed drawings first. Identity includes process start, application/document HWNDs, full path and on-disk SHA-256. Unsaved edits need task-specific preconditions; file identity alone cannot detect them. Use `new_task:true` only when the user actually chooses another drawing.
 2. Prepare noninteractive AutoLISP with a short description and read-only precondition. Prefer `entmakex`, `entget`, `entmod` and `vla-*` database operations; use `command-s` with complete arguments when necessary. Bind ModelSpace/PaperSpace deliberately. Avoid prompts, dialogs, document switches and unbounded loops. Scripts are trusted code, not sandboxed.
 3. Execute the returned job and exact hash. The bridge stages short source chunks to avoid command-line limits, rechecks target/preconditions inside AutoCAD and groups edits for Undo. Do not change global security settings or trust paths. Only explicitly authorized interruption permits `allow_interruption:true`.
 4. Inspect affected handles or bounded geometry independently. Return/save intended handles from the Lisp result when useful. The reported model-space total is separate from returned entities. Check measurements with a stated tolerance, text, layers, layout and rendered output. Verify saved files separately.
@@ -32,5 +32,7 @@ Before scaling unfamiliar work, check required methods/properties read-only (for
 - Older AutoLISP has string-literal limits. Construct long text with `strcat` pieces instead of one oversized literal. The bridge handles transport chunking; do not add sleeps or hand-send generated scripts through GUI typing.
 
 MCP is the default interface; a Python caller may import `CadBridge` from bundled `scripts` and reuse it. That uses the same checks and receipts. Direct COM/SDK calls do not inherit them. Use Cua or a supported API for a demonstrated capability gap, not to evade an unresolved native outcome.
+
+For replacement and tested primitives, read [helpers.md](helpers.md) or request `instructions(topic:"native-helpers")`. Use identity-only inspection between non-geometric jobs. Request `handles` and `detailed:true` for corrected text/dimension properties. Keep one full geometry scan for final acceptance instead of rescanning the drawing after every save or setting change.
 
 Autodesk references: [SendCommand and asynchronous cases](https://help.autodesk.com/cloudhelp/2021/ENU/AutoCAD-ActiveX-Reference/files/GUID-E13A580D-04CA-46C1-B807-95BB461A0A57.htm), [AutoLISP exception handling](https://help.autodesk.com/cloudhelp/2023/ENU/AutoCAD-AutoLISP-Reference/files/GUID-E08CC2A6-787A-422F-8BD3-18812996794C.htm).
